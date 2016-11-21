@@ -1,0 +1,421 @@
+(*aunthor: Yu-Yang Lin, date: 18/11/2016*)
+
+(*==============*)
+(* EXPERIMENT 1 *)
+(*==============*)
+let factorial_body :(canon) = 
+  If (Var "n", 
+      Let("x0",
+          BinOp(Var "n",
+                Int 1),
+          Let("x",
+              Apply(Method "f",Var "x0"),
+              BinOp(Var "x", 
+                    Var "n"))), 
+      Val (Int 1))
+
+(*~~~~~~~~~~*)
+(** TEST 1 **)
+(*~~~~~~~~~~*)
+let result = sat (Apply(Method "f",Int 5)) 
+                 ((Method "f",("n" , factorial_body))::[]) ([]) 
+                 (Suc(Suc(Nil)))
+
+val result : var * phi * names =
+  ("_ret_2_",
+   "(_ret_3_=1) and 
+    (_ret_5_=5(+)1) and 
+    (_ret_8_=false) and 
+    (_ret_9_=x(+)5) and 
+    (_ret_6_=_ret_9_) and 
+    (_ret_4_=_ret_6_) and 
+    ((5=0) => (_ret_2_=_ret_3_)) and 
+    ((5=/=0) => (_ret_2_=_ret_4_))",
+   ["_ret_2_"; "_ret_3_"; "_ret_4_"; "_ret_5_"; "_ret_6_"; "_ret_8_";
+    "_ret_9_"])
+
+(*~~~~~~~~~~*)
+(** TEST 2 **)
+(*~~~~~~~~~~*)
+let result = sat (Apply(Method "f",Int 5)) 
+                 ((Method "f",("n" , factorial_body))::[]) ([]) 
+                 (Suc(Suc(Suc(Nil))))
+
+val result : var * phi * names =
+  ("_ret_2_",
+   "(_ret_3_=1) and 
+    (_ret_5_=5(+)1) and 
+    (_ret_9_=1) and 
+    (_ret_11_=x0(+)1) and 
+    (_ret_14_=false) and 
+    (_ret_15_=x(+)x0) and 
+    (_ret_12_=_ret_15_) and 
+    (_ret_10_=_ret_12_) and 
+    ((x0=0) => (_ret_8_=_ret_9_)) and 
+    ((x0=/=0) => (_ret_8_=_ret_10_)) and 
+    (_ret_16_=x(+)5) and 
+    (_ret_6_=_ret_16_) and 
+    (_ret_4_=_ret_6_) and 
+    ((5=0) => (_ret_2_=_ret_3_)) and 
+    ((5=/=0) => (_ret_2_=_ret_4_))",
+   ["_ret_2_"; "_ret_3_"; "_ret_4_"; "_ret_5_"; "_ret_6_"; "_ret_8_";
+    "_ret_9_"; "_ret_10_"; "_ret_11_"; "_ret_12_"; "_ret_14_"; "_ret_15_";
+    "_ret_16_"])
+
+(*~~~~~~~~~~*)
+(** TEST 3 **)
+(*~~~~~~~~~~*)
+let result = sat (Apply(Method "f",Int 5)) 
+                 ((Method "f",("n" , factorial_body))::[]) ([]) 
+                 (Suc(Nil))
+
+val result : var * phi * names = ("_ret_2_", "(_ret_2_=false)", ["_ret_2_"])
+
+(*~~~~~~~~~~*)
+(** TEST 4 **)
+(*~~~~~~~~~~*)
+let result = sat (Apply(Method "f",Int 5)) 
+                 ((Method "f",("n" , factorial_body))::[]) ([]) 
+                 (nat_of_int 5)
+
+val result : var * phi * names =
+  ("_ret_2_",
+   "(_ret_3_=1) and 
+    (_ret_5_=5(+)1) and 
+    (_ret_9_=1) and 
+    (_ret_11_=x0(+)1) and 
+    (_ret_15_=1) and 
+    (_ret_17_=x0(+)1) and 
+    (_ret_21_=1) and 
+    (_ret_23_=x0(+)1) and 
+    (_ret_26_=false) and 
+    (_ret_27_=x(+)x0) and 
+    (_ret_24_=_ret_27_) and 
+    (_ret_22_=_ret_24_) and 
+    ((x0=0) => (_ret_20_=_ret_21_)) and 
+    ((x0=/=0) => (_ret_20_=_ret_22_)) and 
+    (_ret_28_=x(+)x0) and 
+    (_ret_18_=_ret_28_) and 
+    (_ret_16_=_ret_18_) and 
+    ((x0=0) => (_ret_14_=_ret_15_)) and 
+    ((x0=/=0) => (_ret_14_=_ret_16_)) and 
+    (_ret_29_=x(+)x0) and 
+    (_ret_12_=_ret_29_) and 
+    (_ret_10_=_ret_12_) and 
+    ((x0=0) => (_ret_8_=_ret_9_)) and 
+    ((x0=/=0) => (_ret_8_=_ret_10_)) and 
+    (_ret_30_=x(+)5) and 
+    (_ret_6_=_ret_30_) and 
+    (_ret_4_=_ret_6_) and 
+    ((5=0) => (_ret_2_=_ret_3_)) and 
+    ((5=/=0) => (_ret_2_=_ret_4_))",
+   ["_ret_2_"; "_ret_3_"; "_ret_4_"; "_ret_5_"; "_ret_6_"; "_ret_8_";
+    "_ret_9_"; "_ret_10_"; "_ret_11_"; "_ret_12_"; "_ret_14_"; "_ret_15_";
+    "_ret_16_"; "_ret_17_"; "_ret_18_"; "_ret_20_"; "_ret_21_"; "_ret_22_";
+    "_ret_23_"; "_ret_24_"; "_ret_26_"; "_ret_27_"; "_ret_28_"; "_ret_29_";
+    "_ret_30_"])
+
+(*--------------*)
+(* Observations *)
+(*--------------*)
+Let bindings can be new each time, but this does not apply to recursive definitions.
+Thus, we must make the semantics create new variables every time it sees a let binding.
+We must also add the equalities for let bindings. i.e. let x = C1 in C2 also has the
+binding for x, so we must have (x = ret of C1) in the formula.
+
+
+(*==============*)
+(* EXPERIMENT 2 *)
+(*==============*)
+Added equalities for let binding.
+Added fresh variables to the semantics of let binding.
+Added fresh variables to the semantics of let-lambda binding.
+
+(*~~~~~~~~~~*)
+(** TEST 1 **)
+(*~~~~~~~~~~*)
+let result = sat (Apply(Method "f",Int 5)) 
+                 ((Method "f",("n" , factorial_body))::[]) ([]) 
+                 (nat_of_int 2)
+
+val result : var * phi * names =
+  ("_ret_2_",
+   "(_ret_3_=1) and 
+    (_ret_5_=5(+)1) and 
+    (_ret_8_=false) and 
+    (_ret_9_=x(+)5) and 
+    (_x_2_=_ret_8_) and 
+    (_ret_6_=_ret_9_) and 
+    (_x_1_=_ret_5_) and 
+    (_ret_4_=_ret_6_) and 
+    ((5=0) => (_ret_2_=_ret_3_)) and 
+    ((5=/=0) => (_ret_2_=_ret_4_))",
+   ["_ret_2_"; "_ret_3_"; "_x_1_"; "_ret_4_"; "_ret_5_"; "_x_2_"; "_ret_6_";
+    "_ret_8_"; "_ret_9_"])
+
+(*~~~~~~~~~~*)
+(** TEST 2 **)
+(*~~~~~~~~~~*)
+let result = sat (Apply(Method "f",Int 5)) 
+                 ((Method "f",("n" , factorial_body))::[]) ([]) 
+                 (nat_of_int 3)
+
+val result : var * phi * names =
+  ("_ret_2_",
+   "(_ret_3_=1) and
+    (_ret_5_=5(+)1) and
+    (_ret_9_=1) and
+    (_ret_11_=_x_1_(+)1) and       
+    (_ret_14_=false) and
+    (_ret_15_=_x_4_(+)_x_1_) and
+    (_x_4_=_ret_14_) and
+    (_ret_12_=_ret_15_) and
+    (_x_3_=_ret_11_) and
+    (_ret_10_=_ret_12_) and
+    ((_x_1_=0) => (_ret_8_=_ret_9_)) and
+    ((_x_1_=/=0) => (_ret_8_=_ret_10_)) and
+    (_ret_16_=_x_2_(+)5) and
+    (_x_2_=_ret_8_) and
+    (_ret_6_=_ret_16_) and
+    (_x_1_=_ret_5_) and
+    (_ret_4_=_ret_6_) and
+    ((5=0) => (_ret_2_=_ret_3_)) and
+    ((5=/=0) => (_ret_2_=_ret_4_))",
+   ["_ret_2_"; "_ret_3_"; "_x_1_"; "_ret_4_"; "_ret_5_"; "_x_2_"; "_ret_6_";
+    "_ret_8_"; "_ret_9_"; "_x_3_"; "_ret_10_"; "_ret_11_"; "_x_4_";
+    "_ret_12_"; "_ret_14_"; "_ret_15_"; "_ret_16_"])
+
+(*--------------*)
+(* Observations *)
+(*--------------*)
+All names are unique. Formula is in CNF. Formula prints out deepest calls first.
+
+(*==============*)
+(* EXPERIMENT 3 *)
+(*==============*)
+Added check for duplicates in uplus; should failwith upon a duplicate.
+Changed 'sat' from just returning a formula, to returning a list of formulas.
+First layer formula is added first instead of deepest layer first.
+Added operation string to BinOp.
+Added better pretty printing.
+
+(*~~~~~~~~~~*)
+(** TEST 1 **)
+(*~~~~~~~~~~*)
+
+k = 3
+
+Formula:
+ ((5=0) => (_ret_2_=_ret_3_)) and
+ ((5=/=0) => (_ret_2_=_ret_4_)) and
+ (_ret_3_=1) and
+ (_x_1_=_ret_5_) and
+ (_ret_4_=_ret_6_) and
+ (_ret_5_=5-1) and
+ (_x_2_=_ret_8_) and
+ (_ret_6_=_ret_16_) and
+ ((_x_1_=0) => (_ret_8_=_ret_9_)) and
+ ((_x_1_=/=0) => (_ret_8_=_ret_10_)) and
+ (_ret_9_=1) and
+ (_x_3_=_ret_11_) and
+ (_ret_10_=_ret_12_) and
+ (_ret_11_=_x_1_-1) and
+ (_x_4_=_ret_14_) and
+ (_ret_12_=_ret_15_) and
+ (_ret_14_=false) and
+ (_ret_15_=_x_4_*_x_1_) and
+ (_ret_16_=_x_2_*5) and
+
+Names:
+ _ret_2_;
+ _ret_3_;
+ _x_1_;
+ _ret_4_;
+ _ret_5_;
+ _x_2_;
+ _ret_6_;
+ _ret_8_;
+ _ret_9_;
+ _x_3_;
+ _ret_10_;
+ _ret_11_;
+ _x_4_;
+ _ret_12_;
+ _ret_14_;
+ _ret_15_;
+ _ret_16_;
+ 
+(*~~~~~~~~~~*)
+(** TEST 2 **)
+(*~~~~~~~~~~*)
+ 
+ k = 10
+ 
+ Formula:
+ ((5=0) => (_ret_2_=_ret_3_)) and
+ ((5=/=0) => (_ret_2_=_ret_4_)) and
+ (_ret_3_=1) and
+ (_x_1_=_ret_5_) and
+ (_ret_4_=_ret_6_) and
+ (_ret_5_=5-1) and
+ (_x_2_=_ret_8_) and
+ (_ret_6_=_ret_65_) and
+ ((_x_1_=0) => (_ret_8_=_ret_9_)) and
+ ((_x_1_=/=0) => (_ret_8_=_ret_10_)) and
+ (_ret_9_=1) and
+ (_x_3_=_ret_11_) and
+ (_ret_10_=_ret_12_) and
+ (_ret_11_=_x_1_-1) and
+ (_x_4_=_ret_14_) and
+ (_ret_12_=_ret_64_) and
+ ((_x_3_=0) => (_ret_14_=_ret_15_)) and
+ ((_x_3_=/=0) => (_ret_14_=_ret_16_)) and
+ (_ret_15_=1) and
+ (_x_5_=_ret_17_) and
+ (_ret_16_=_ret_18_) and
+ (_ret_17_=_x_3_-1) and
+ (_x_6_=_ret_20_) and
+ (_ret_18_=_ret_63_) and
+ ((_x_5_=0) => (_ret_20_=_ret_21_)) and
+ ((_x_5_=/=0) => (_ret_20_=_ret_22_)) and
+ (_ret_21_=1) and
+ (_x_7_=_ret_23_) and
+ (_ret_22_=_ret_24_) and
+ (_ret_23_=_x_5_-1) and
+ (_x_8_=_ret_26_) and
+ (_ret_24_=_ret_62_) and
+ ((_x_7_=0) => (_ret_26_=_ret_27_)) and
+ ((_x_7_=/=0) => (_ret_26_=_ret_28_)) and
+ (_ret_27_=1) and
+ (_x_9_=_ret_29_) and
+ (_ret_28_=_ret_30_) and
+ (_ret_29_=_x_7_-1) and
+ (_x_10_=_ret_32_) and
+ (_ret_30_=_ret_61_) and
+ ((_x_9_=0) => (_ret_32_=_ret_33_)) and
+ ((_x_9_=/=0) => (_ret_32_=_ret_34_)) and
+ (_ret_33_=1) and
+ (_x_11_=_ret_35_) and
+ (_ret_34_=_ret_36_) and
+ (_ret_35_=_x_9_-1) and
+ (_x_12_=_ret_38_) and
+ (_ret_36_=_ret_60_) and
+ ((_x_11_=0) => (_ret_38_=_ret_39_)) and
+ ((_x_11_=/=0) => (_ret_38_=_ret_40_)) and
+ (_ret_39_=1) and
+ (_x_13_=_ret_41_) and
+ (_ret_40_=_ret_42_) and
+ (_ret_41_=_x_11_-1) and
+ (_x_14_=_ret_44_) and
+ (_ret_42_=_ret_59_) and
+ ((_x_13_=0) => (_ret_44_=_ret_45_)) and
+ ((_x_13_=/=0) => (_ret_44_=_ret_46_)) and
+ (_ret_45_=1) and
+ (_x_15_=_ret_47_) and
+ (_ret_46_=_ret_48_) and
+ (_ret_47_=_x_13_-1) and
+ (_x_16_=_ret_50_) and
+ (_ret_48_=_ret_58_) and
+ ((_x_15_=0) => (_ret_50_=_ret_51_)) and
+ ((_x_15_=/=0) => (_ret_50_=_ret_52_)) and
+ (_ret_51_=1) and
+ (_x_17_=_ret_53_) and
+ (_ret_52_=_ret_54_) and
+ (_ret_53_=_x_15_-1) and
+ (_x_18_=_ret_56_) and
+ (_ret_54_=_ret_57_) and
+ (_ret_56_=false) and
+ (_ret_57_=_x_18_*_x_15_) and
+ (_ret_58_=_x_16_*_x_13_) and
+ (_ret_59_=_x_14_*_x_11_) and
+ (_ret_60_=_x_12_*_x_9_) and
+ (_ret_61_=_x_10_*_x_7_) and
+ (_ret_62_=_x_8_*_x_5_) and
+ (_ret_63_=_x_6_*_x_3_) and
+ (_ret_64_=_x_4_*_x_1_) and
+ (_ret_65_=_x_2_*5) and
+
+Names:
+ _ret_2_;
+ _ret_3_;
+ _x_1_;
+ _ret_4_;
+ _ret_5_;
+ _x_2_;
+ _ret_6_;
+ _ret_8_;
+ _ret_9_;
+ _x_3_;
+ _ret_10_;
+ _ret_11_;
+ _x_4_;
+ _ret_12_;
+ _ret_14_;
+ _ret_15_;
+ _x_5_;
+ _ret_16_;
+ _ret_17_;
+ _x_6_;
+ _ret_18_;
+ _ret_20_;
+ _ret_21_;
+ _x_7_;
+ _ret_22_;
+ _ret_23_;
+ _x_8_;
+ _ret_24_;
+ _ret_26_;
+ _ret_27_;
+ _x_9_;
+ _ret_28_;
+ _ret_29_;
+ _x_10_;
+ _ret_30_;
+ _ret_32_;
+ _ret_33_;
+ _x_11_;
+ _ret_34_;
+ _ret_35_;
+ _x_12_;
+ _ret_36_;
+ _ret_38_;
+ _ret_39_;
+ _x_13_;
+ _ret_40_;
+ _ret_41_;
+ _x_14_;
+ _ret_42_;
+ _ret_44_;
+ _ret_45_;
+ _x_15_;
+ _ret_46_;
+ _ret_47_;
+ _x_16_;
+ _ret_48_;
+ _ret_50_;
+ _ret_51_;
+ _x_17_;
+ _ret_52_;
+ _ret_53_;
+ _x_18_;
+ _ret_54_;
+ _ret_56_;
+ _ret_57_;
+ _ret_58_;
+ _ret_59_;
+ _ret_60_;
+ _ret_61_;
+ _ret_62_;
+ _ret_63_;
+ _ret_64_;
+ _ret_65_;
+
+(*--------------*)
+(* Observations *)
+(*--------------*)
+Seems to work fine for large numbers, all names are unique.
+Seems to be linear on k if the program checked is linear.
+Not sure how it grows with exponential programs.
+e.g. multiple recursive calls such as fibonacci.
+With disjoint check, translation works fine up to k=100.
+Without disjoint check, translation works fine up to k=1000.
