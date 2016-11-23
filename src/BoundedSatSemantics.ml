@@ -5,14 +5,14 @@ open Format
 (*******************)
 (* Fresh Variables *)
 (*******************)
-let var_x = ref 0
-let var_r = ref 0
-let var_m = ref 0
+let var_x  = ref 0
+let var_r  = ref 0
+let var_m  = ref 0
 let return = ref 0
-let fresh_x () = var_x := !var_x + 1; "_x_" ^ string_of_int (!var_x) ^ "_" (*format: _x_int_*)
-let fresh_r () = var_r := !var_r + 1; "_r_" ^ string_of_int (!var_r) ^ "_" (*format: _r_int_*)
-let fresh_m () = var_m := !var_m + 1; "_m_" ^ string_of_int (!var_m) ^ "_" (*format: _m_int_*)
-let fresh_ret () = return := !return + 1; "_ret_" ^ string_of_int (!return) ^ "_" (*format: _ret_int_*)
+let fresh_x   () = var_x  := !var_x + 1;  sprintf "_x_%s_"   (string_of_int (!var_x))
+let fresh_r   () = var_r  := !var_r + 1;  sprintf "_r_%s_"   (string_of_int (!var_r))
+let fresh_m   () = var_m  := !var_m + 1;  sprintf "_m_%s_"   (string_of_int (!var_m))
+let fresh_ret () = return := !return + 1; sprintf "_ret_%s_" (string_of_int (!return))
 
 (**********************)
 (* Substitute: v{a/b} *)
@@ -58,60 +58,66 @@ let rec subs (m : canon) (a : value) (b : value) =
 (*************************)
 (* Bounded SAT Semantics *)
 (*************************)
-let rec sat (m : canon) (r : repo) (s : store) (k : nat) :(var * phi list * names) =
+let rec sat_smt (m : canon) (r : repo) (rc : counter) (k : nat) :(var * cnf * counter) =
   let ret = fresh_ret () in
   match (k,m) with
-  | Nil,_ -> (ret,[sprintf "(%s=false)" ret],ret::[])
+  | Nil,_ -> (ret,[(ret) === cnf_nil],rc)
   | k,Let(x,c1,c2) -> let x' = fresh_x () in
-                      let (x1,phi1,n1) = sat c1 r s k in
-                      let (x2,phi2,n2) = sat (subs c2 (Var x') (Var x)) r s k in
-                      let ret_eq_x2 = sprintf "(%s=%s)" ret x2 in
-                      let x_eq_x1   = sprintf "(%s=%s)" x' x1  in
-                      (ret,x_eq_x1::ret_eq_x2::(phi1@phi2),uplus (x'::ret::n1) n2 [])
+                      let (x1,phi1,rc1) = sat_smt c1 r rc k in
+                      let (x2,phi2,rc2) = sat_smt (subs c2 (Var x') (Var x)) r rc1 k in
+                      let x_fail    = (x'===cnf_fail)==>(ret===cnf_fail) in
+                      let x_nofail  = (x'=/=cnf_fail)==>(ret===x2)       in
+                      let x_eq_x1   = x' === x1  in
+                      (ret,x_fail::x_nofail::x_eq_x1::(phi1@phi2),rc2)
   | k,Lambda(f,(x,c1),c2) -> let new_x = fresh_m () in
                              let new_m = Method(new_x) in
                              let f' = fresh_x () in
                              let c2' = subs c2 (Var f') (Var f) in
-                             let (x1,phi1,n1) = sat c1 r s k in
-                             let (x2,phi2,n2) = sat (subs c2' new_m (Var f'))
-                                                    ((new_m,(x,c1))::r) s k in
-                             let ret_eq_x2 = sprintf "(%s=%s)" ret x2 in
+                             let (x2,phi2,rc2) = sat_smt (subs c2' new_m (Var f'))
+                                                         (update r new_m (x,c1)) rc k in
+                             let ret_eq_x2 = ret === x2 in
                              (*x's in methods are replaced on apply, so no need for fresh*)
-                             (ret,ret_eq_x2::(phi1@phi2),
+                             (ret,ret_eq_x2::phi2,rc2)
                              (*no need to say f' = x1 since it's just put in the repo*)
                              (*we do have to c2{f'/f} though, for SSA*)
-                             uplus (new_x::ret::n1) n2 [])
-  | Suc(k),Apply(v1,v2) -> let (x,c) = get_method r v1 in
+  | Suc(k),Apply(v1,v2) -> let (x,c) = get r v1 in
                            let c' = subs c v2 (Var x) in
-                           sat c' r s k
+                           sat_smt c' r rc k
   | k,BinOp(v1,v2,op) -> let x1 = string_of_value v1 in
                          let x2 = string_of_value v2 in
-                         (ret,[sprintf "(%s=%s%s%s)" ret x1 op x2],ret::[])
+                         (ret,[ret === (x1^op^x2)],rc)
   | k,Assign(v1,v2) -> let x1 = string_of_value v1 in
                        let x2 = string_of_value v2 in
-                       let v1_eq_v2    = sprintf "(%s=%s)" x1 x2 in
-                       let ret_eq_unit = sprintf "(%s=true)" ret in
-                       (ret,v1_eq_v2::ret_eq_unit::[],x1::ret::[])
-  | k,Deref(v) -> let x = string_of_value (get_state s v) in
-                  (ret,[sprintf "(%s=%s)" ret x],ret::[])
+                       let rc'= cupdate rc x1 in
+                       let v1_eq_v2    = (rcget rc' x1) === x2 in
+                       let ret_eq_unit = ret === "true" in
+                       (ret,v1_eq_v2::ret_eq_unit::[],rc')
+  | k,Deref(Ref(v)) -> let x = rcget rc v in
+                       (ret,[ret === x],rc)
   | k,Pi1(Pair(v1,v2)) -> let x = string_of_value v1 in
-                          (ret,[sprintf "(%s=%s)" ret x],ret::[])
+                          (ret,[ret === x],rc)
   | k,Pi2(Pair(v1,v2)) -> let x = string_of_value v2 in
-                          (ret,[sprintf "(%s=%s)" ret x],ret::[])
+                          (ret,[ret === x],rc)
   | k,Val(v) -> let x = string_of_value v in
-                (ret,[sprintf "(%s=%s)" ret x],ret::[])
-  | k,If(v,c1,c0) -> let (x0,phi0,n0) = sat c0 r s k in
-                     let (x1,phi1,n1) = sat c1 r s k in
+                (ret,[ret === x],rc)
+  | k,If(v,c1,c0) -> let (x0,phi0,rc0) = sat_smt c0 r rc k in
+                     let (x1,phi1,rc1) = sat_smt c1 r rc k in
                      let x = string_of_value v in
-                     let v0_to_x0 = sprintf "((%s=0) => (%s=%s))"   x ret x0 in
-                     let vi_to_x1 = sprintf "((%s=/=0) => (%s=%s))" x ret x1 in
-                     (ret,v0_to_x0::vi_to_x1::(phi0@phi1),uplus (ret::n0) n1 [])
-  | k,Fail -> (ret,[sprintf "(%s=false)" ret],ret::[])
-  | _ -> (ret,[sprintf "(%s=true)" ret],ret::[])
+                     let v0_to_x0 = (x==="0")==>(ret===x0) in
+                     let vi_to_x1 = (x=/="0")==>(ret===x1) in
+                     (ret,v0_to_x0::vi_to_x1::(phi0@phi1),cmerge rc0 rc1)
+  | k,Fail -> (ret,[ret === cnf_fail],rc)
+  | _ -> failwith "***[error] : unexpected input to SAT/SMT semantics."
 
-let rec string_of_phi = function
+let string_of_clause = function
+  | Eq (x,y) -> sprintf "(%s=%s)" x y
+  | Neq(x,y) -> sprintf "(%s=/=%s)" x y
+
+let rec string_of_cnf = function
   | [] -> ""
-  | (x::xs) -> sprintf "%s and\n %s" x (string_of_phi xs)
+  | (Clause x)::xs -> sprintf "%s and\n %s" (string_of_clause x) (string_of_cnf xs)
+  | (Implies (x,y))::xs -> sprintf "(%s=>%s) and\n %s" (string_of_clause x) (string_of_clause y)
+                                   (string_of_cnf xs)
 
 
 (***********)
@@ -130,11 +136,11 @@ let factorial_body :(canon) =
                    "*"))),
       Val (Int 1))
 
-let result = sat (Apply(Method "f",Int 5))
-                 ((Method "f",("n" , factorial_body))::[]) ([])
-                 (nat_of_int 100)
+let result = sat_smt (Apply(Method "f",Int 5))
+                     (update empty_repo (Method "f") ("n" , factorial_body)) 
+                     (empty_counter)
+                     (nat_of_int 1000)
 
 let _ = let (x,y,z) = result in
-        printf "Formula:\n %s\n" (string_of_phi y);
-        printf "Names:\n %s"     (string_of_names z);
-        exit 1
+        printf "Formula:\n %s\n" (string_of_cnf y);
+        exit 0

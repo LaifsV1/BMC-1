@@ -2,7 +2,6 @@
 open Format
 
 type var = string        (* Variables *)
-type phi = string        (* Formulas *)
 type binop = string      (* Binary Operations *)
 
 (* Natural Numbers *)
@@ -20,56 +19,63 @@ let rec string_of_value (v : value) :(string) =
   | Method x -> x
   | Ref x -> x
   | Pair(x,y) -> sprintf "(%s , %s)" (string_of_value x) (string_of_value y)
-  | Unit -> "()"
+  | Unit -> "skip"
   | Var x -> x
 
 (* Canonical Form *)
-type canon = Let of var * canon * canon                    (* let x = C in C *)
-           | Lambda of var * (var * canon) * canon         (* let x = \x.C in C *)
-           | Apply of value * value                        (* v v *)
-           | BinOp of value * value * binop                (* v (+) v *)
-           | Assign of value * value                       (* v := v *)
-           | Deref of value                                (* ! v *)
-           | Pi1 of value                                  (* pi1 (v,v) *)
-           | Pi2 of value                                  (* pi2 (v,v) *)
-           | Val of value                                  (* v *)
-           | If of value * canon * canon                   (* if v then C else C *)
-           | Fail                                          (* fail *)
+type canon = Let of var * canon * canon               (* let x = C in C *)
+           | Lambda of var * (var * canon) * canon    (* let x = \x.C in C *)
+           | Apply of value * value                   (* v v *)
+           | BinOp of value * value * binop           (* v (+) v *)
+           | Assign of value * value                  (* v := v *)
+           | Deref of value                           (* ! v *)
+           | Pi1 of value                             (* pi1 (v,v) *)
+           | Pi2 of value                             (* pi2 (v,v) *)
+           | Val of value                             (* v *)
+           | If of value * canon * canon              (* if v then C else C *)
+           | Fail                                     (* fail *)
 
-(*********************)
-(* Method Repository *)
-(*********************)
+(* CNF *)
+type clause = Eq of var * var     (* x=x' *)
+            | Neq of var * var    (* x=/=x' *)
+type cnf_elem = Clause of clause              (* x=x' *)
+              | Implies of clause * clause    (* (v=v') => (x=x') *)
+type cnf = cnf_elem list                      (* conjunctive normal form *)
+
+let cnf_fail = "CNF_FAIL"
+let cnf_nil  = "CNF_NIL"
+
+let (===) v1 v2 = Clause(Eq(v1,v2))
+let (=/=) v1 v2 = Clause(Neq(v1,v2))
+let (==>) v1 v2 = 
+  match v1,v2 with
+  | Clause a, Clause b -> Implies(a,b)
+  | _ -> failwith "***[error] : tried to build CNF with nested implications."
+
+(*******************************************)
+(* Method Repository and Reference Counter *)
+(*******************************************)
 (* partial map, method names to functions *)
-type repo = (value * (var * canon)) list
-let rec get_method (r : repo) (v : value) =
-  match r with
-  | [] -> failwith (sprintf "***[error] : method '%s' not in repo.***" (string_of_value v))
-  | (m,(x,c))::xs -> if m=v then (x,c) else get_method xs v
+module Repo = Map.Make(struct type t = value let compare = compare end)
+let get    map key  = Repo.find key map
+let update map key record = Repo.add key record map
 
-(*******************)
-(* Reference Store *)
-(*******************)
-(* partial map, references to values *)
-type store = (value * value) list
-let rec get_state (r : store) (v : value) =
-  match r with
-  | [] -> failwith (sprintf "***[error] : variable '%s' not in store.***" (string_of_value v))
-  | (v1,v2)::xs -> if v1=v then v2 else get_state xs v
+type repo  = (string * canon) Repo.t
+let empty_repo :(repo) = Repo.empty
 
-(**********************)
-(* Variables Assigned *)
-(**********************)
-(* list of variables assigned so far; all should be unique *)
-type names = var list
-let uplus n1 n2 n3 = n1@n2
-(* (**for testing only**)
-let rec uplus n1 n2 acc =
-  match n1 with
-  | [] -> acc@n2
-  | (x::xs) -> (if List.mem x n2
-                then failwith (sprintf "***[error] : variable '%s' in N1 exists in N2.***" x)
-                else uplus xs n2 (acc@[x])) *)
+(* partial map, references to int *)
+(* counter maps r to its assignments seen so far; i.e. if none, then zero *)
+module Counter = Map.Make(String)
+let cget map key = try Counter.find key map with Not_found -> 0
+let cupdate map key =  Counter.add key ((cget map key)+1) map
+let cmerge  m1  m2  = 
+  Counter.merge (fun key v1 v2 -> 
+                  match v1,v2 with
+                  | Some a, None -> Some a
+                  | None, Some b -> Some b
+                  | _ -> failwith "***[error] : duplicate in the ref counters."
+                ) m1 m2
+let rcget map key = sprintf "_%s_%s_" key (string_of_int (cget map key))
 
-let rec string_of_names = function
-  | [] -> ""
-  | (x::xs) -> sprintf "%s;\n %s" x (string_of_names xs)
+type counter = int Counter.t
+let empty_counter :(counter) = Counter.empty
