@@ -101,11 +101,11 @@ let rec sat_smt (m : canon) (r : repo) (rc : counter) (k : nat) :(var * cnf * co
   | k,Val(v) -> let x = string_of_value v in
                 (ret,[ret === x],rc)
   | k,If(v,c1,c0) -> let (x0,phi0,rc0) = sat_smt c0 r rc k in
-                     let (x1,phi1,rc1) = sat_smt c1 r rc k in
+                     let (x1,phi1,rc1) = sat_smt c1 r rc0 k in
                      let x = string_of_value v in
                      let v0_to_x0 = (x==="0")==>(ret===x0) in
                      let vi_to_x1 = (x=/="0")==>(ret===x1) in
-                     (ret,v0_to_x0::vi_to_x1::(phi0@phi1),cmerge rc0 rc1)
+                     (ret,v0_to_x0::vi_to_x1::(phi0@phi1),rc1)
   | k,Fail -> (ret,[ret === cnf_fail],rc)
   | _ -> failwith "***[error] : unexpected input to SAT/SMT semantics."
 
