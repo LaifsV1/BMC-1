@@ -1,4 +1,4 @@
-(*aunthor: Yu-Yang Lin, date: 18/11/2016*)
+(*author: Yu-Yang Lin, date: 18/11/2016*)
 
 (*==============*)
 (* EXPERIMENT 1 *)
@@ -419,3 +419,47 @@ Not sure how it grows with exponential programs.
 e.g. multiple recursive calls such as fibonacci.
 With disjoint check, translation works fine up to k=100.
 Without disjoint check, translation works fine up to k=1000.
+
+(*==============*)
+(* EXPERIMENT 4 *)
+(*==============*)
+Changed rules and structure dramatically.
+This experiment is only for performance testing though.
+
+(*~~~~~~~~~~*)
+(** TEST 1 **)
+(*~~~~~~~~~~*)
+No accumulator for phi : cnf; phi's are just appended using @.
+[k = 1,000]
+Execution time: 0.253000s
+Execution time: 0.270000s
+Execution time: 0.243000s
+
+[k = 10,000]
+Execution time: 58.104000s
+Execution time: 57.179000s
+Execution time: 58.383000s
+
+(*~~~~~~~~~~*)
+(** TEST 2 **)
+(*~~~~~~~~~~*)
+Accumulator for phi : cnf used.
+[k = 1,000]
+Execution time: 0.092000s
+Execution time: 0.087000s
+Execution time: 0.089000s
+
+[k = 10,000]
+Execution time: 0.959000s
+Execution time: 0.977000s
+Execution time: 0.984000s
+
+(*--------------*)
+(* Observations *)
+(*--------------*)
+Adding an accumulator seems to have made the complexity linear.
+Increasing from k = 1,000 to k = 10,000 has increased the execution
+time from 0.092s worst case to 0.984s worst case.
+i.e. 10x increase in k results in ~10x increase in time.
+Without an accumulator, the complexity seems to be non-linear.
+10x increase in k results in ~230x increase in time.

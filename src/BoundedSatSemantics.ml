@@ -58,23 +58,23 @@ let rec subs (m : canon) (a : value) (b : value) =
 (*************************)
 (* Bounded SAT Semantics *)
 (*************************)
-let rec sat_smt (m : canon) (r : repo) (rc : counter) (k : nat) :(var * cnf * counter) =
+let rec sat_smt (m : canon) (r : repo) (rc : counter) (k : nat) (acc : cnf) :(var * cnf * counter) =
   let ret = fresh_ret () in
   match (k,m) with
-  | Nil,_ -> (ret,[(ret) === cnf_nil],rc)
+  | Nil,_ -> (ret,(ret === cnf_nil)::acc,rc)
   | k,Let(x,c1,c2) -> let x' = fresh_x () in
-                      let (x1,phi1,rc1) = sat_smt c1 r rc k in
-                      let (x2,phi2,rc2) = sat_smt (subs c2 (Var x') (Var x)) r rc1 k in
+                      let (x1,phi1,rc1) = sat_smt c1 r rc k acc in
+                      let (x2,phi2,rc2) = sat_smt (subs c2 (Var x') (Var x)) r rc1 k phi1 in
                       let x_fail    = (x'===cnf_fail)==>(ret===cnf_fail) in
                       let x_nofail  = (x'=/=cnf_fail)==>(ret===x2)       in
                       let x_eq_x1   = x' === x1  in
-                      (ret,x_fail::x_nofail::x_eq_x1::(phi1@phi2),rc2)
+                      (ret,x_fail::x_nofail::x_eq_x1::phi2,rc2)
   | k,Lambda(f,(x,c1),c2) -> let new_x = fresh_m () in
                              let new_m = Method(new_x) in
                              let f' = fresh_x () in
                              let c2' = subs c2 (Var f') (Var f) in
                              let (x2,phi2,rc2) = sat_smt (subs c2' new_m (Var f'))
-                                                         (update r new_m (x,c1)) rc k in
+                                                         (update r new_m (x,c1)) rc k acc in
                              let ret_eq_x2 = ret === x2 in
                              (*x's in methods are replaced on apply, so no need for fresh*)
                              (ret,ret_eq_x2::phi2,rc2)
@@ -82,47 +82,68 @@ let rec sat_smt (m : canon) (r : repo) (rc : counter) (k : nat) :(var * cnf * co
                              (*we do have to c2{f'/f} though, for SSA*)
   | Suc(k),Apply(v1,v2) -> let (x,c) = get r v1 in
                            let c' = subs c v2 (Var x) in
-                           sat_smt c' r rc k
+                           sat_smt c' r rc k acc
   | k,BinOp(v1,v2,op) -> let x1 = string_of_value v1 in
                          let x2 = string_of_value v2 in
-                         (ret,[ret === (x1^op^x2)],rc)
+                         (ret,(ret === (x1^op^x2))::acc,rc)
   | k,Assign(v1,v2) -> let x1 = string_of_value v1 in
                        let x2 = string_of_value v2 in
                        let rc'= cupdate rc x1 in
                        let v1_eq_v2    = (rcget rc' x1) === x2 in
                        let ret_eq_unit = ret === "true" in
-                       (ret,v1_eq_v2::ret_eq_unit::[],rc')
+                       (ret,v1_eq_v2::ret_eq_unit::acc,rc')
   | k,Deref(Ref(v)) -> let x = rcget rc v in
-                       (ret,[ret === x],rc)
+                       (ret,(ret === x)::acc,rc)
   | k,Pi1(Pair(v1,v2)) -> let x = string_of_value v1 in
-                          (ret,[ret === x],rc)
+                          (ret,(ret === x)::acc,rc)
   | k,Pi2(Pair(v1,v2)) -> let x = string_of_value v2 in
-                          (ret,[ret === x],rc)
+                          (ret,(ret === x)::acc,rc)
   | k,Val(v) -> let x = string_of_value v in
-                (ret,[ret === x],rc)
-  | k,If(v,c1,c0) -> let (x0,phi0,rc0) = sat_smt c0 r rc k in
-                     let (x1,phi1,rc1) = sat_smt c1 r rc0 k in
+                (ret,(ret === x)::acc,rc)
+  | k,If(v,c1,c0) -> let (x0,phi0,rc0) = sat_smt c0 r rc k acc in
+                     let (x1,phi1,rc1) = sat_smt c1 r rc0 k phi0 in
                      let x = string_of_value v in
                      let v0_to_x0 = (x==="0")==>(ret===x0) in
                      let vi_to_x1 = (x=/="0")==>(ret===x1) in
-                     (ret,v0_to_x0::vi_to_x1::(phi0@phi1),rc1)
-  | k,Fail -> (ret,[ret === cnf_fail],rc)
+                     (ret,v0_to_x0::vi_to_x1::(phi1),rc1)
+  | k,Fail -> (ret,(ret === cnf_fail)::acc,rc)
   | _ -> failwith "***[error] : unexpected input to SAT/SMT semantics."
 
+(***********************)
+(* String_of functions *)
+(***********************)
 let string_of_clause = function
   | Eq (x,y) -> sprintf "(%s=%s)" x y
   | Neq(x,y) -> sprintf "(%s=/=%s)" x y
 
-let rec string_of_cnf = function
+let rec string_of_cnf' acc = function
+  | [] -> acc
+  | (Clause x)::xs -> let s = sprintf "%s and\n %s" acc (string_of_clause x) in
+                      string_of_cnf' s xs
+  | (Implies (x,y))::xs -> let s = sprintf "%s and\n (%s=>%s)" acc
+                                           (string_of_clause x)
+                                           (string_of_clause y) in
+                           string_of_cnf' s xs
+
+let string_of_cnf = function
   | [] -> ""
-  | (Clause x)::xs -> sprintf "%s and\n %s" (string_of_clause x) (string_of_cnf xs)
-  | (Implies (x,y))::xs -> sprintf "(%s=>%s) and\n %s" (string_of_clause x) (string_of_clause y)
-                                   (string_of_cnf xs)
+  | (Clause x)::xs -> let s = (string_of_clause x) in
+                      string_of_cnf' s xs
+  | (Implies (x,y))::xs -> let s = sprintf "(%s=>%s)"
+                                           (string_of_clause x)
+                                           (string_of_clause y) in
+                           string_of_cnf' s xs
 
 
 (***********)
 (* TESTING *)
 (***********)
+let time f x =
+    let t = Sys.time() in
+    let res = f x in
+    printf "Execution time: %fs\n" (Sys.time() -. t);
+    res
+
 let factorial_body :(canon) =
   If (Var "n",
       Let("x0",
@@ -137,10 +158,11 @@ let factorial_body :(canon) =
       Val (Int 1))
 
 let result = sat_smt (Apply(Method "f",Int 5))
-                     (update empty_repo (Method "f") ("n" , factorial_body)) 
+                     (update empty_repo (Method "f") ("n" , factorial_body))
                      (empty_counter)
                      (nat_of_int 1000)
+                     []
 
 let _ = let (x,y,z) = result in
-        printf "Formula:\n %s\n" (string_of_cnf y);
+        printf "Formula:\n %s\n" (string_of_int (List.length y));
         exit 0
