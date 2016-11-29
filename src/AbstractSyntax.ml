@@ -11,6 +11,9 @@ let rec nat_of_int (i : int) :(nat) =
   | true -> Suc(nat_of_int (i-1))
   | false -> Nil
 
+(* Types *)
+type tp = Command | Integer | Product of tp * tp | Arrow of tp * tp
+
 (* Values *)
 type value = Unit | Int of int | Method of var | Ref of var | Var of var | Pair of value * value
 let rec string_of_value (v : value) :(string) =
@@ -23,17 +26,17 @@ let rec string_of_value (v : value) :(string) =
   | Var x -> x
 
 (* Canonical Form *)
-type canon = Let of var * canon * canon               (* let x = C in C *)
-           | Lambda of var * (var * canon) * canon    (* let x = \x.C in C *)
-           | Apply of value * value                   (* v v *)
-           | BinOp of value * value * binop           (* v (+) v *)
-           | Assign of value * value                  (* v := v *)
-           | Deref of value                           (* ! v *)
-           | Pi1 of value                             (* pi1 (v,v) *)
-           | Pi2 of value                             (* pi2 (v,v) *)
-           | Val of value                             (* v *)
-           | If of value * canon * canon              (* if v then C else C *)
-           | Fail                                     (* fail *)
+type canon = Let of (var * tp) * canon * canon               (* let (x : tau) = C in C *)
+           | Lambda of (var * tp) * (var * canon) * canon    (* let x = \x.C in C *)
+           | Apply of value * value                          (* v v *)
+           | BinOp of value * value * binop                  (* v (+) v *)
+           | Assign of value * value                         (* v := v *)
+           | Deref of value                                  (* ! v *)
+           | Pi1 of value                                    (* pi1 (v,v) *)
+           | Pi2 of value                                    (* pi2 (v,v) *)
+           | Val of value                                    (* v *)
+           | If of value * canon * canon                     (* if v then C else C *)
+           | Fail                                            (* fail *)
 
 (* CNF *)
 type clause = Eq of var * var     (* x=x' *)
@@ -47,7 +50,7 @@ let cnf_nil  = "CNF_NIL"
 
 let (===) v1 v2 = Clause(Eq(v1,v2))
 let (=/=) v1 v2 = Clause(Neq(v1,v2))
-let (==>) v1 v2 = 
+let (==>) v1 v2 =
   match v1,v2 with
   | Clause a, Clause b -> Implies(a,b)
   | _ -> failwith "***[error] : tried to build CNF with nested implications."
@@ -57,7 +60,7 @@ let (==>) v1 v2 =
 (*******************************************)
 (* partial map, method names to functions *)
 module Repo = Map.Make(struct type t = value let compare = compare end)
-let get    map key  = Repo.find key map
+let get    map key        = Repo.find key map
 let update map key record = Repo.add key record map
 
 type repo  = (string * canon) Repo.t
@@ -68,8 +71,8 @@ let empty_repo :(repo) = Repo.empty
 module Counter = Map.Make(String)
 let cget map key = try Counter.find key map with Not_found -> 0
 let cupdate map key =  Counter.add key ((cget map key)+1) map
-let cmerge  m1  m2  = 
-  Counter.merge (fun key v1 v2 -> 
+let cmerge  m1  m2  =
+  Counter.merge (fun key v1 v2 ->
                   match v1,v2 with
                   | Some a, None -> Some a
                   | None, Some b -> Some b
