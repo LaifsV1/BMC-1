@@ -63,7 +63,7 @@ module Repo = Map.Make(struct type t = value let compare = compare end)
 let get    map key        = Repo.find key map
 let update map key record = Repo.add key record map
 
-type repo  = (value * canon) Repo.t
+type repo  = (value * canon * tp) Repo.t
 let empty_repo :(repo) = Repo.empty
 
 (* partial map, references to int *)
