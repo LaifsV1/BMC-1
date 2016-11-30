@@ -15,7 +15,7 @@ let rec nat_of_int (i : int) :(nat) =
 type tp = Command | Integer | Product of tp * tp | Arrow of tp * tp
 
 (* Values *)
-type value = Unit | Int of int | Method of var | Ref of var | Var of var | Pair of value * value
+type value = Unit | Int of int | Method of var | Ref of var | Var of var * tp  | Pair of value * value
 let rec string_of_value (v : value) :(string) =
   match v with
   | Int i -> string_of_int i
@@ -23,20 +23,20 @@ let rec string_of_value (v : value) :(string) =
   | Ref x -> x
   | Pair(x,y) -> sprintf "(%s , %s)" (string_of_value x) (string_of_value y)
   | Unit -> "skip"
-  | Var x -> x
+  | Var (x,y) -> x
 
 (* Canonical Form *)
-type canon = Let of (var * tp) * canon * canon               (* let (x : tau) = C in C *)
-           | Lambda of (var * tp) * (var * canon) * canon    (* let x = \x.C in C *)
-           | Apply of value * value                          (* v v *)
-           | BinOp of value * value * binop                  (* v (+) v *)
-           | Assign of value * value                         (* v := v *)
-           | Deref of value                                  (* ! v *)
-           | Pi1 of value                                    (* pi1 (v,v) *)
-           | Pi2 of value                                    (* pi2 (v,v) *)
-           | Val of value                                    (* v *)
-           | If of value * canon * canon                     (* if v then C else C *)
-           | Fail                                            (* fail *)
+type canon = Let of value * canon * canon                 (* let (x : tau) = C in C *)
+           | Lambda of value * (value * canon) * canon    (* let x = \x.C in C *)
+           | Apply of value * value                       (* v v *)
+           | BinOp of value * value * binop               (* v (+) v *)
+           | Assign of value * value                      (* v := v *)
+           | Deref of value                               (* ! v *)
+           | Pi1 of value                                 (* pi1 (v,v) *)
+           | Pi2 of value                                 (* pi2 (v,v) *)
+           | Val of value                                 (* v *)
+           | If of value * canon * canon                  (* if v then C else C *)
+           | Fail                                         (* fail *)
 
 (* CNF *)
 type clause = Eq of var * var     (* x=x' *)
@@ -63,7 +63,7 @@ module Repo = Map.Make(struct type t = value let compare = compare end)
 let get    map key        = Repo.find key map
 let update map key record = Repo.add key record map
 
-type repo  = (string * canon) Repo.t
+type repo  = (value * canon) Repo.t
 let empty_repo :(repo) = Repo.empty
 
 (* partial map, references to int *)

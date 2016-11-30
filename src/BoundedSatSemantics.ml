@@ -24,11 +24,11 @@ let rec subs_pair (v : value) (a : value) (b : value) =
 
 let rec subs (m : canon) (a : value) (b : value) =
   match m with
-  | Let((x,tau),c1,c2) -> if Var(x)=b then m else Let((x,tau),(subs c1 a b),(subs c2 a b))
-  | Lambda((f,tau),(x,c1),c2) -> if Var(f)=b then m
-                                 else (if Var(x)=b
-                                       then Lambda((f,tau),(x,c1),subs c2 a b)
-                                       else Lambda((f,tau),(x,subs c1 a b),subs c2 a b))
+  | Let(x,c1,c2) -> if x=b then m else Let(x,(subs c1 a b),(subs c2 a b))
+  | Lambda(f,(x,c1),c2) -> if f=b then m
+                           else (if x=b
+                                 then Lambda(f,(x,c1),subs c2 a b)
+                                 else Lambda(f,(x,subs c1 a b),subs c2 a b))
   | Apply(v1,v2) -> (match (v1=b,v2=b) with
                      | true,true -> Apply(a,a)
                      | true,false -> Apply(a,v2)
@@ -62,26 +62,27 @@ let rec sat_smt (m : canon) (r : repo) (rc : counter) (k : nat) (acc : cnf) :(va
   let ret = fresh_ret () in
   match (k,m) with
   | Nil,_ -> (ret,(ret === cnf_nil)::acc,r,rc)
-  | k,Let((x,tau),c1,c2) -> let x' = fresh_x () in
-                            let (x1,phi1,r1,rc1) = sat_smt c1 r rc k acc in
-                            let (x2,phi2,r2,rc2) = sat_smt (subs c2 (Var x') (Var x)) r1 rc1 k phi1 in
-                            let x_fail    = (x'===cnf_fail)==>(ret===cnf_fail) in
-                            let x_nofail  = (x'=/=cnf_fail)==>(ret===x2)       in
-                            let x_eq_x1   = x' === x1  in
-                            (ret,x_fail::x_nofail::x_eq_x1::phi2,r2,rc2)
-  | k,Lambda((f,tau),(x,c1),c2) -> let new_x = fresh_m () in
-                                   let new_m = Method(new_x) in
-                                   let f' = fresh_x () in
-                                   let c2' = subs c2 (Var f') (Var f) in
-                                   let (x2,phi2,r2,rc2) = sat_smt (subs c2' new_m (Var f'))
-                                                                  (update r new_m (x,c1)) rc k acc in
-                                   let ret_eq_x2 = ret === x2 in
-                                   (*x's in methods are replaced on apply, so no need for fresh*)
-                                   (ret,ret_eq_x2::phi2,r2,rc2)
-                                   (*no need to say f' = x1 since it's just put in the repo*)
-                                   (*we do have to c2{f'/f} though, for SSA*)
+  | k,Let(Var(x,tau),c1,c2) -> let x' = fresh_x () in
+                               let (x1,phi1,r1,rc1) = sat_smt c1 r rc k acc in
+                               let (x2,phi2,r2,rc2) = sat_smt (subs c2 (Var (x',tau)) (Var (x,tau))) r1 rc1 k phi1 in
+                               let x_fail    = (x'===cnf_fail)==>(ret===cnf_fail) in
+                               let x_nofail  = (x'=/=cnf_fail)==>(ret===x2)       in
+                               let x_eq_x1   = x' === x1  in
+                               (ret,x_fail::x_nofail::x_eq_x1::phi2,r2,rc2)
+  | k,Lambda(Var(f,tau),(Var(x,tau1),c1),c2) -> let new_x = fresh_m () in
+                                         let new_m = Method(new_x) in
+                                         let f' = fresh_x () in
+                                         let f'' = Var (f',tau) in
+                                         let c2' = subs c2 f'' (Var (f,tau)) in
+                                         let (x2,phi2,r2,rc2) = sat_smt (subs c2' new_m f'')
+                                                                        (update r new_m (Var(x,tau1),c1)) rc k acc in
+                                         let ret_eq_x2 = ret === x2 in
+                                         (*x's in methods are replaced on apply, so no need for fresh*)
+                                         (ret,ret_eq_x2::phi2,r2,rc2)
+                                         (*no need to say f' = x1 since it's just put in the repo*)
+                                         (*we do have to c2{f'/f} though, for SSA*)
   | Suc(k),Apply(v1,v2) -> let (x,c) = get r v1 in
-                           let c' = subs c v2 (Var x) in
+                           let c' = subs c v2 x in
                            sat_smt c' r rc k acc
   | k,BinOp(v1,v2,op) -> let x1 = string_of_value v1 in
                          let x2 = string_of_value v2 in
@@ -144,21 +145,20 @@ let time f x =
     printf "Execution time: %fs\n" (Sys.time() -. t);
     res
 
-let factorial_body :(canon) =
-  If (Var "n",
-      Let(("x0",Integer),
-          BinOp(Var "n",
-                Int 1,
-                "-"),
-          Let(("x",Integer),
-              Apply(Method "f",Var "x0"),
-              BinOp(Var "x",
-                    Var "n",
-                   "*"))),
-      Val (Int 1))
+let factorial :(value * canon) =
+  let n = Var ("n",Integer) in
+  let x = Var ("x",Integer) in
+  let x0 = Var ("x0",Integer) in
+  let factorial_body :(canon) =
+    If (n,
+        Let(x0,BinOp(n,Int 1,"-"),
+            Let(x,Apply(Method "f",x0),
+                BinOp(x,n,"*"))),
+        Val (Int 1))
+  in (n,factorial_body)
 
 let result = sat_smt (Apply(Method "f",Int 5))
-                     (update empty_repo (Method "f") ("n" , factorial_body))
+                     (update empty_repo (Method "f") factorial)
                      (empty_counter)
                      (nat_of_int 1000)
                      []
