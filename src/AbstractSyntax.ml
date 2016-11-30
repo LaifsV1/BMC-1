@@ -37,6 +37,24 @@ type canon = Let of value * canon * canon                 (* let (x : tau) = C i
            | Val of value                                 (* v *)
            | If of value * canon * canon                  (* if v then C else C *)
            | Fail                                         (* fail *)
+let rec string_of_canon = function
+  | Let(v,c1,c2) -> sprintf "let %s = (%s) in (%s)"
+                            (string_of_value v) (string_of_canon c1) (string_of_canon c2)
+  | Lambda(f,(x,c1),c2) -> sprintf "let %s = (fun %s.%s) in (%s)"
+                                   (string_of_value f) (string_of_value x)
+                                   (string_of_canon c1) (string_of_canon c2)
+  | Apply(v1,v2) -> sprintf "%s %s" (string_of_value v1) (string_of_value v2)
+  | BinOp(v1,v2,op) -> let x1 = string_of_value v1 in
+                       let x2 = string_of_value v2 in
+                       x1^op^x2
+  | Assign(v1,v2) -> sprintf "%s := %s" (string_of_value v1) (string_of_value v2)
+  | Deref(v) -> sprintf "!%s" (string_of_value v)
+  | Pi1(v) -> sprintf "Pi1(%s)" (string_of_value v)
+  | Pi2(v) -> sprintf "Pi2(%s)" (string_of_value v)
+  | Val(v) -> sprintf "%s" (string_of_value v)
+  | If(v,c1,c2) -> sprintf "if %s then (%s) else (%s)"
+                            (string_of_value v) (string_of_canon c1) (string_of_canon c2)
+  | Fail -> "fail"
 
 (* CNF *)
 type clause = Eq of var * var     (* x=x' *)
@@ -62,6 +80,7 @@ let (==>) v1 v2 =
 module Repo = Map.Make(struct type t = value let compare = compare end)
 let get    map key        = Repo.find key map
 let update map key record = Repo.add key record map
+let map    map f          = Repo.map f map
 
 type repo  = (value * canon * tp) Repo.t
 let empty_repo :(repo) = Repo.empty
@@ -69,8 +88,9 @@ let empty_repo :(repo) = Repo.empty
 (* partial map, references to int *)
 (* counter maps r to its assignments seen so far; i.e. if none, then zero *)
 module Counter = Map.Make(String)
-let cget map key = try Counter.find key map with Not_found -> 0
-let cupdate map key =  Counter.add key ((cget map key)+1) map
+let cget    map key = try Counter.find key map with Not_found -> 0
+let cupdate map key = Counter.add key ((cget map key)+1) map
+let cmap    map f   = Counter.map f map
 let cmerge  m1  m2  =
   Counter.merge (fun key v1 v2 ->
                   match v1,v2 with
@@ -78,7 +98,9 @@ let cmerge  m1  m2  =
                   | None, Some b -> Some b
                   | _ -> failwith "***[error] : duplicate in the ref counters."
                 ) m1 m2
-let rcget map key = sprintf "_%s_%s_" key (string_of_int (cget map key))
-
+let rcget   map key = sprintf "_%s_%s_" key (string_of_int (cget map key))
+let dupdate map key new_val = Counter.add key new_val map
+let cfold   map f   acc     = Counter.fold f map acc
+let rcelem key value = sprintf "_%s_%s_" key (string_of_int value)
 type counter = int Counter.t
 let empty_counter :(counter) = Counter.empty
