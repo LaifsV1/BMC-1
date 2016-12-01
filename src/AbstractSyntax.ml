@@ -79,8 +79,9 @@ let (==>) v1 v2 =
 (* partial map, method names to functions *)
 module Repo = Map.Make(struct type t = value let compare = compare end)
 let get    map key        = Repo.find key map
-let update map key record = Repo.add key record map
 let map    map f          = Repo.map f map
+let update map key record = Repo.add key record map
+let mfold  map f   acc    = Repo.fold f map acc
 
 type repo  = (value * canon * tp) Repo.t
 let empty_repo :(repo) = Repo.empty
