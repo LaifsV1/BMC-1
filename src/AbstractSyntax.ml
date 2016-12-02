@@ -78,10 +78,8 @@ let (==>) v1 v2 =
 (*******************************************)
 (* partial map, method names to functions *)
 module Repo = Map.Make(struct type t = value let compare = compare end)
-let get    map key        = Repo.find key map
-let map    map f          = Repo.map f map
-let update map key record = Repo.add key record map
-let mfold  map f   acc    = Repo.fold f map acc
+let repo_get    map key        = Repo.find key map
+let repo_update map key record = Repo.add key record map
 
 type repo  = (value * canon * tp) Repo.t
 let empty_repo :(repo) = Repo.empty
@@ -89,19 +87,10 @@ let empty_repo :(repo) = Repo.empty
 (* partial map, references to int *)
 (* counter maps r to its assignments seen so far; i.e. if none, then zero *)
 module Counter = Map.Make(String)
-let cget    map key = try Counter.find key map with Not_found -> 0
-let cupdate map key = Counter.add key ((cget map key)+1) map
-let cmap    map f   = Counter.map f map
-let cmerge  m1  m2  =
-  Counter.merge (fun key v1 v2 ->
-                  match v1,v2 with
-                  | Some a, None -> Some a
-                  | None, Some b -> Some b
-                  | _ -> failwith "***[error] : duplicate in the ref counters."
-                ) m1 m2
-let rcget   map key = sprintf "_%s_%s_" key (string_of_int (cget map key))
-let dupdate map key new_val = Counter.add key new_val map
-let cfold   map f   acc     = Counter.fold f map acc
-let rcelem key value = sprintf "_%s_%s_" key (string_of_int value)
+let c_get    map key = try Counter.find key map with Not_found -> 0
+let c_update map key = Counter.add key ((c_get map key)+1) map
+let ref_get   map key = sprintf "_%s_%s_" key (string_of_int (c_get map key))
+let d_update map key new_val = Counter.add key new_val map
+let string_of_ref key value = sprintf "_%s_%s_" key (string_of_int value)
 type counter = int Counter.t
 let empty_counter :(counter) = Counter.empty
