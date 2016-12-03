@@ -106,7 +106,8 @@ let rec sat_smt (m : canon) (r : repo) (rc : counter) (rd : counter) (k : nat) (
            (* fold over all C' for the (C'(r)=Di(r)) in the implication *)
            Counter.fold
              (fun ref_key counter_val phi_acc2 ->
-               ((x===key_string)==>((string_of_ref ref_key counter_val)===(ref_get rdi ref_key)))::phi_acc2)
+               let ref_i = string_of_ref ref_key counter_val in
+               ((x===key_string)==>(ref_i===(ref_get rdi ref_key)))::phi_acc2)
              rcj' phi_acc1)
          rd_list phij
      in
@@ -118,7 +119,7 @@ let rec sat_smt (m : canon) (r : repo) (rc : counter) (rd : counter) (k : nat) (
      let x1 = string_of_value (Ref v1) in
      let x2 = string_of_value v2 in
      let rc'= c_update rc x1 in
-     let rd'= d_update rd x1 (c_get rc x1) in
+     let rd'= d_update rd x1 (c_get rc' x1) in
      let v1_eq_v2    = (ref_get rc' x1) === x2 in
      let ret_eq_unit = ret === "true" in
      (ret,v1_eq_v2::ret_eq_unit::acc,r,rc',rd')
@@ -154,7 +155,7 @@ let rec sat_smt (m : canon) (r : repo) (rc : counter) (rd : counter) (k : nat) (
              rc'
              phi2_0
      in
-     (ret,v0_to_x0::vi_to_x1::phi2_1,r1,rc',rc')
+     (ret,vi_to_x1::v0_to_x0::phi2_1,r1,rc',rc')
   | k,Fail -> (ret,(ret === cnf_fail)::acc,r,rc,rd)
   | _ -> failwith (sprintf "***[error] : unexpected input to SAT/SMT semantics\n%s"
                            (string_of_canon m))
@@ -192,10 +193,20 @@ let time f x =
     printf "Execution time: %fs\n" (Sys.time() -. t);
     res
 
+(*~~~~~~~~~~~~~~~~*)
+(* TEST FUNCTIONS *)
+(*~~~~~~~~~~~~~~~~*)
+(*************************)
+(* if n                  *)
+(* then let x0 = n-1 in  *)
+(*      let x  = f x0 in *)
+(*      x*n              *)
+(* else 1                *)
+(*************************)
 let factorial :(value * canon * tp) =
-  let n = Var ("n",Integer) in
-  let x = Var ("x",Integer) in
-  let x0 = Var ("x0",Integer) in
+  let n  = Var("n",Integer) in
+  let x  = Var("x",Integer) in
+  let x0 = Var("x0",Integer) in
   let factorial_body :(canon) =
     If (n,
         Let(x0,BinOp(n,Int 1,"-"),
@@ -206,12 +217,39 @@ let factorial :(value * canon * tp) =
   let tau = Arrow(Integer,Integer)
   in (n,factorial_body,tau)
 
-let result = sat_smt (Apply(Method "f",Int 5))
-                     (repo_update empty_repo (Method "f") factorial)
-                     (empty_counter)
-                     (empty_counter)
-                     (nat_of_int 3)
-                     []
+let factorial_sat = sat_smt (Apply(Method "f",Int 5))
+                            (repo_update empty_repo (Method "f") factorial)
+                            (empty_counter)
+                            (empty_counter)
+
+(****************************)
+(* if n                     *)
+(* then let x = r1 := 1 in  *)
+(*      let x = r2 := 2 in  *)
+(*      skip                *)
+(* else let x = r2 := 0 in  *)
+(*      skip                *)
+(****************************)
+let ssa_1 =
+  let n  = Var("n",Integer) in
+  let x  = Var("x",Command) in
+  let r1 = Ref("r1") in
+  let r2 = Ref("r2") in
+  let ssa_1_body = If (n,
+                       Let(x,Assign(r1,Int 1),
+                           Let(x,Assign(r2,Int 2),Val Unit)),
+                       Let(x,Assign(r2,Int 0),Val Unit))
+  in
+  let tau = Arrow(Integer,Command) in
+  (n,ssa_1_body,tau)
+
+let ssa_1_sat = sat_smt (Apply(Method "m",Int 1))
+                        (repo_update empty_repo (Method "m") ssa_1)
+                        (empty_counter)
+                        (empty_counter)
+
+(* RUN TEST *)
+let result = ssa_1_sat (nat_of_int 2) []
 
 let _ = let (ret,phi,repo,c_counter,d_counter) = result in
         printf "Formula:\n %s\n" (string_of_cnf (phi));
