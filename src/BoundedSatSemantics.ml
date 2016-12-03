@@ -248,7 +248,9 @@ let ssa_1_sat = sat_smt (Apply(Method "m",Int 1))
                         (empty_counter)
                         (empty_counter)
 
-(* RUN TEST *)
+(****************)
+(*** RUN TEST ***)
+(****************)
 let result = ssa_1_sat (nat_of_int 2) []
 
 let _ = let (ret,phi,repo,c_counter,d_counter) = result in

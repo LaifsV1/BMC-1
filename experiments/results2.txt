@@ -1,0 +1,63 @@
+(*author: Yu-Yang Lin, date 03/12/2016*)
+
+(*==============*)
+(* EXPERIMENT 1 *)
+(*==============*)
+
+(****************************)
+(* if n                     *)
+(* then let x = r1 := 1 in  *)
+(*      let x = r2 := 2 in  *)
+(*      skip                *)
+(* else let x = r2 := 0 in  *)
+(*      skip                *)
+(****************************)
+
+Formula:
+ ((1=/=0)=>(_ret_2_=_ret_6_)) and
+ ((1=0)=>(_ret_2_=_ret_3_)) and
+ ((1=/=0)=>(_r2_3_=_r2_2_)) and
+ ((1=/=0)=>(_r1_2_=_r1_1_)) and
+ ((1=0)=>(_r2_3_=_r2_1_)) and
+ ((1=0)=>(_r1_2_=_r1_0_)) and
+ ((_x_2_=CNF_FAIL)=>(_ret_6_=CNF_FAIL)) and
+ ((_x_2_=/=CNF_FAIL)=>(_ret_6_=_ret_8_)) and
+ (_x_2_=_ret_7_) and
+ ((_x_3_=CNF_FAIL)=>(_ret_8_=CNF_FAIL)) and
+ ((_x_3_=/=CNF_FAIL)=>(_ret_8_=_ret_10_)) and
+ (_x_3_=_ret_9_) and
+ (_ret_10_=skip) and
+ (_r2_2_=2) and
+ (_ret_9_=true) and
+ (_r1_1_=1) and
+ (_ret_7_=true) and
+ ((_x_1_=CNF_FAIL)=>(_ret_3_=CNF_FAIL)) and
+ ((_x_1_=/=CNF_FAIL)=>(_ret_3_=_ret_5_)) and
+ (_x_1_=_ret_4_) and
+ (_ret_5_=skip) and
+ (_r2_1_=0) and
+ (_ret_4_=true)
+
+(*--------------*)
+(* Observations *)
+(*--------------*)
+Of particular interest are:
+((1=/=0)=>(_r2_3_=_r2_2_)),
+((1=/=0)=>(_r1_2_=_r1_1_)),
+((1=0)=>(_r2_3_=_r2_1_)),
+((1=0)=>(_r1_2_=_r1_0_))
+(_r2_1_=0), 
+(_r1_1_=1), 
+(_r2_2_=2), 
+
+These say that:
+If 1=/=0
+then r2_3 = r2_2 = 2 and r1_2 = r1_1 = 1.
+else r2_3 = r2_1 = 0 and r1_2 = r1_0 = nothing.
+
+-In the "else" branch, r1 is not modified, i.e. equal to r1_0, which has no value yet (will have in S_0).
+-In the "else" branch, r2 is modified, i.e. equal to r2_1, which equals 0.
+-In the "then" branch, r1 is modified, i.e. equal to r1_1, which equals 1.
+-In the "then" branch, r2 is modified, i.e. equal to r2_2, which equals 2.
+-Variables are in correct SSA; C and D counters seem to be working.
+-If rule seems to be correctly keeping track of state.
