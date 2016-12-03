@@ -90,7 +90,7 @@ let rec sat_smt (m : canon) (r : repo) (rc : counter) (rd : counter) (k : nat) (
      let c' = subs c v x in
      sat_smt c' r rc rd k acc
   | Suc(k),Apply(Var(x,tau),v) ->
-     (** NOTE: still not correct, we need to take tau into account **)
+     (** NOTE: this could be optimised **)
      (* fold over all repo names to compute ret = reti *)
      let f key (xi,mi,taui) (philast,rlast,rclast,rdlast) =
        if taui=tau
