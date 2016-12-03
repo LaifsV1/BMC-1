@@ -90,12 +90,15 @@ let rec sat_smt (m : canon) (r : repo) (rc : counter) (rd : counter) (k : nat) (
      let c' = subs c v x in
      sat_smt c' r rc rd k acc
   | Suc(k),Apply(Var(x,tau),v) ->
+     (** NOTE: still not correct, we need to take tau into account **)
      (* fold over all repo names to compute ret = reti *)
      let f key (xi,mi,taui) (philast,rlast,rclast,rdlast) =
-       let key_string = string_of_value key in (* refs in R *)
-       let (reti,phii,ri,rci,rdi) = sat_smt (subs mi v xi) rlast rclast rd k acc in
-       let phii'  = ((x===key_string)==>(ret===reti))::phii in
-       (phii',ri,rci,(key_string,rdi)::rdlast)
+       if taui=tau
+       then let key_string = string_of_value key in (* refs in R *)
+            let (reti,phii,ri,rci,rdi) = sat_smt (subs mi v xi) rlast rclast rd k acc in
+            let phii'  = ((x===key_string)==>(ret===reti))::phii in
+            (phii',ri,rci,(key_string,rdi)::rdlast)
+       else (philast,rlast,rclast,rdlast)
      in
      let phij,rj,rcj,rd_list = Repo.fold f r (acc,r,rc,[]) in
      (* fold over all Di's and C' for the (x=m_i) in the implication *)
