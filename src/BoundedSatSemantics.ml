@@ -59,10 +59,10 @@ let rec subs (m : canon) (a : value) (b : value) =
 (* Bounded SAT Semantics *)
 (*************************)
 let rec sat_smt (m : canon) (r : repo) (rc : counter) (rd : counter) (k : nat) (acc : cnf) :(var * cnf * repo * counter * counter) =
-  let ret = fresh_ret () in
   match (k,m) with
-  | Nil,_ -> (ret,(ret === cnf_nil)::acc,r,rc,rd)
+  | Nil,_ -> (cnf_nil,acc,r,rc,rd)
   | k,Let(Var(x,tau),c1,c2) ->
+     let ret = fresh_ret () in
      let x' = fresh_x () in
      let (x1,phi1,r1,rc1,rd1) = sat_smt c1 r rc rd k acc in
      let (x2,phi2,r2,rc2,rd2) = sat_smt (subs c2 (Var (x',tau)) (Var (x,tau)))
@@ -74,30 +74,23 @@ let rec sat_smt (m : canon) (r : repo) (rc : counter) (rd : counter) (k : nat) (
   | k,Lambda(Var(f,tau_to_tau),(Var(x,tau1),c1),c2) ->
      let new_x = fresh_m () in
      let new_m = Method(new_x) in
-     let f' = fresh_x () in
-     let f'' = Var (f',tau_to_tau) in
-     let c2' = subs c2 f'' (Var (f,tau_to_tau)) in
-     let (x2,phi2,r2,rc2,rd2) = sat_smt (subs c2' new_m f'')
-                                        (repo_update r new_m (Var(x,tau1),c1,tau_to_tau))
-                                        rc rd k acc in
-     let ret_eq_x2 = ret === x2 in
-     (*x's in methods are replaced on apply, so no need for fresh*)
-     (ret,ret_eq_x2::phi2,r2,rc2,rd2)
-     (*no need to say f' = x1 since it's just put in the repo*)
-     (*we do have to c2{f'/f} though, for SSA*)
+     sat_smt (subs c2 new_m (Var (f,tau_to_tau)))
+             (repo_update r new_m (Var(x,tau1),c1,tau_to_tau))
+             rc rd k acc
   | Suc(k),Apply(Method(m),v) ->
      let (x,c,tau) = repo_get r (Method(m)) in
      let c' = subs c v x in
      sat_smt c' r rc rd k acc
   | Suc(k),Apply(Var(x,tau),v) ->
+     let ret = fresh_ret () in
      (** NOTE: this could be optimised **)
      (* fold over all repo names to compute ret = reti *)
      let f key (xi,mi,taui) (philast,rlast,rclast,rdlast) =
        if taui=tau
-       then let key_string = string_of_value key in (* refs in R *)
+       then let method_name = string_of_value key in (* refs in R *)
             let (reti,phii,ri,rci,rdi) = sat_smt (subs mi v xi) rlast rclast rd k acc in
-            let phii'  = ((x===key_string)==>(ret===reti))::phii in
-            (phii',ri,rci,(key_string,rdi)::rdlast)
+            let phii'  = ((x===method_name)==>(ret===reti))::phii in
+            (phii',ri,rci,(method_name,rdi)::rdlast)
        else (philast,rlast,rclast,rdlast)
      in
      let phij,rj,rcj,rd_list = Repo.fold f r (acc,r,rc,[]) in
@@ -105,40 +98,40 @@ let rec sat_smt (m : canon) (r : repo) (rc : counter) (rd : counter) (k : nat) (
      let rcj' = Counter.map (fun x -> x + 1) rcj in
      let phij' =
        List.fold_right
-         (fun (key_string,rdi) phi_acc1 ->
+         (fun (method_name,rdi) phi_acc1 ->
            (* fold over all C' for the (C'(r)=Di(r)) in the implication *)
            Counter.fold
              (fun ref_key counter_val phi_acc2 ->
                let ref_i = string_of_ref ref_key counter_val in
-               ((x===key_string)==>(ref_i===(ref_get rdi ref_key)))::phi_acc2)
+               ((x===method_name)==>(ref_i===(ref_get rdi ref_key)))::phi_acc2)
              rcj' phi_acc1)
          rd_list phij
      in
      (ret,phij',rj,rcj',rcj')
   | k,BinOp(v1,v2,op) ->
      let binop = string_of_canon (BinOp(v1,v2,op)) in
-     (ret,(ret === binop)::acc,r,rc,rd)
+     (binop,acc,r,rc,rd)
   | k,Assign(Ref v1,v2) ->
      let x1 = string_of_value (Ref v1) in
      let x2 = string_of_value v2 in
      let rc'= c_update rc x1 in
      let rd'= d_update rd x1 (c_get rc' x1) in
      let v1_eq_v2    = (ref_get rc' x1) === x2 in
-     let ret_eq_unit = ret === "true" in
-     (ret,v1_eq_v2::ret_eq_unit::acc,r,rc',rd')
+     (string_of_value Unit,v1_eq_v2::acc,r,rc',rd')
   | k,Deref(Ref(v)) ->
      let x = ref_get rd v in
-     (ret,(ret === x)::acc,r,rc,rd)
+     (x,acc,r,rc,rd)
   | k,Pi1(Pair(v1,v2)) ->
      let x = string_of_value v1 in
-     (ret,(ret === x)::acc,r,rc,rd)
+     (x,acc,r,rc,rd)
   | k,Pi2(Pair(v1,v2)) ->
      let x = string_of_value v2 in
-     (ret,(ret === x)::acc,r,rc,rd)
+     (x,acc,r,rc,rd)
   | k,Val(v) ->
      let x = string_of_value v in
-     (ret,(ret === x)::acc,r,rc,rd)
+     (x,acc,r,rc,rd)
   | k,If(v,c1,c0) ->
+     let ret = fresh_ret () in
      let (x0,phi0,r0,rc0,rd0) = sat_smt c0 r  rc  rd k acc  in
      let (x1,phi1,r1,rc1,rd1) = sat_smt c1 r0 rc0 rd k phi0 in
      let rc' = Counter.map (fun x -> x + 1) rc1 in
@@ -159,7 +152,7 @@ let rec sat_smt (m : canon) (r : repo) (rc : counter) (rd : counter) (k : nat) (
              phi2_0
      in
      (ret,vi_to_x1::v0_to_x0::phi2_1,r1,rc',rc')
-  | k,Fail -> (ret,(ret === cnf_fail)::acc,r,rc,rd)
+  | k,Fail -> (cnf_fail,acc,r,rc,rd)
   | _ -> failwith (sprintf "***[error] : unexpected input to SAT/SMT semantics\n%s"
                            (string_of_canon m))
 
@@ -251,10 +244,34 @@ let ssa_1_sat = sat_smt (Apply(Method "m",Int 1))
                         (empty_counter)
                         (empty_counter)
 
+(********************************************)
+(* let (f1:int->int)  = \(x:int).(x:int) in *)
+(* let (f2:int->comm) = \(x:int).skip    in *)
+(* let (y:comm)       = r := f1          in *)
+(* let (f:int->int)   = !r in f 5           *)
+(********************************************)
+let function_1_term =
+  let x  = Var("x",Integer) in
+  let y  = Var("y",Command) in
+  let f  = Var("f",Arrow(Integer,Integer)) in
+  let f1 = Var("f1",Arrow(Integer,Integer)) in
+  let f2 = Var("f2",Arrow(Integer,Command)) in
+  let r  = Ref("r") in
+  Lambda(f1,(x,Val x),
+         Lambda(f2,(x,Val Unit),
+                Let(y,Assign(r,f1),
+                    Let(f,Deref r,
+                        Apply(f,Int 5)))))
+
+let function_1 = sat_smt function_1_term
+                         (repo_update empty_repo (Method "f") factorial)
+                         (empty_counter)
+                         (empty_counter)
+
 (****************)
 (*** RUN TEST ***)
 (****************)
-let result = ssa_1_sat (nat_of_int 2) []
+let result = ssa_1_sat (nat_of_int 3) []
 
 let _ = let (ret,phi,repo,c_counter,d_counter) = result in
         printf "Formula:\n %s\n" (string_of_cnf (phi));

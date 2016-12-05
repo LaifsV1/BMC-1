@@ -78,7 +78,11 @@ let (==>) v1 v2 =
 (*******************************************)
 (* partial map, method names to functions *)
 module Repo = Map.Make(struct type t = value let compare = compare end)
-let repo_get    map key        = Repo.find key map
+let repo_get    map key        = try Repo.find key map
+                                 with Not_found ->
+                                   failwith (sprintf
+                                               "***[error] : method '%s' not in repo."
+                                               (string_of_value key))
 let repo_update map key record = Repo.add key record map
 
 type repo  = (value * canon * tp) Repo.t

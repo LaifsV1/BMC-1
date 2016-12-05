@@ -1,0 +1,84 @@
+[~~~~~~~~~~~~~~~~~~~~~~]
+[ Program 1: Factorial ]
+[~~~~~~~~~~~~~~~~~~~~~~]
+(*************************)
+(* if n                  *)
+(* then let x0 = n-1 in  *)
+(*      let x  = f x0 in *)
+(*      x*n              *)
+(* else 1                *)
+(*************************)
+let factorial :(value * canon * tp) =
+  let n  = Var("n",Integer) in
+  let x  = Var("x",Integer) in
+  let x0 = Var("x0",Integer) in
+  let factorial_body :(canon) =
+    If (n,
+        Let(x0,BinOp(n,Int 1,"-"),
+            Let(x,Apply(Method "f",x0),
+                BinOp(x,n,"*"))),
+        Val (Int 1))
+  in
+  let tau = Arrow(Integer,Integer)
+  in (n,factorial_body,tau)
+
+let factorial_sat = sat_smt (Apply(Method "f",Int 5))
+                            (repo_update empty_repo (Method "f") factorial)
+                            (empty_counter)
+                            (empty_counter)
+														
+[|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~|]
+[| Program 2: Conditional with State |]
+[|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~|]
+(****************************)
+(* if n                     *)
+(* then let x = r1 := 1 in  *)
+(*      let x = r2 := 2 in  *)
+(*      skip                *)
+(* else let x = r2 := 0 in  *)
+(*      skip                *)
+(****************************)
+let ssa_1 =
+  let n  = Var("n",Integer) in
+  let x  = Var("x",Command) in
+  let r1 = Ref("r1") in
+  let r2 = Ref("r2") in
+  let ssa_1_body = If (n,
+                       Let(x,Assign(r1,Int 1),
+                           Let(x,Assign(r2,Int 2),Val Unit)),
+                       Let(x,Assign(r2,Int 0),Val Unit))
+  in
+  let tau = Arrow(Integer,Command) in
+  (n,ssa_1_body,tau)
+
+let ssa_1_sat = sat_smt (Apply(Method "m",Int 1))
+                        (repo_update empty_repo (Method "m") ssa_1)
+                        (empty_counter)
+                        (empty_counter)
+  
+[|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~|]
+[| Program 3: Non-Deterministic Function Application |]
+[|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~|]
+(********************************************)
+(* let (f1:int->int)  = \(x:int).(x:int) in *)
+(* let (f2:int->comm) = \(x:int).skip    in *)
+(* let (y:comm)       = r := f1          in *)
+(* let (f:int->int)   = !r in f 5           *)
+(********************************************)
+let function_1_term =
+  let x  = Var("x",Integer) in
+  let y  = Var("y",Command) in
+  let f  = Var("f",Arrow(Integer,Integer)) in
+  let f1 = Var("f1",Arrow(Integer,Integer)) in
+  let f2 = Var("f2",Arrow(Integer,Command)) in
+  let r  = Ref("r") in
+  Lambda(f1,(x,Val x),
+         Lambda(f2,(x,Val Unit),
+                Let(y,Assign(r,f1),
+                    Let(f,Deref r,
+                        Apply(f,Int 5)))))
+
+let function_1 = sat_smt function_1_term
+                         (repo_update empty_repo (Method "f") factorial)
+                         (empty_counter)
+                         (empty_counter)
