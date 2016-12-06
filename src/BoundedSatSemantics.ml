@@ -9,11 +9,11 @@ let var_x  = ref 0
 let var_r  = ref 0
 let var_m  = ref 0
 let return = ref 0
-let fresh_x   () = var_x  := !var_x + 1;  
+let fresh_x   () = var_x  := !var_x + 1;
                    sprintf "_x%s_"   (string_of_int (!var_x))
-let fresh_m   () = var_m  := !var_m + 1;  
+let fresh_m   () = var_m  := !var_m + 1;
                    sprintf "_m%s_"   (string_of_int (!var_m))
-let fresh_ret () = return := !return + 1; 
+let fresh_ret () = return := !return + 1;
                    sprintf "_ret%s_" (string_of_int (!return))
 
 (**********************)
@@ -63,6 +63,27 @@ let rec subs (m : canon) (a : value) (b : value) =
 let rec sat_smt (m : canon) (r : repo) (rc : counter) (rd : counter) (k : nat) (acc : cnf) :(var * cnf * repo * counter * counter) =
   match (k,m) with
   | Nil,_ -> (cnf_nil,acc,r,rc,rd)
+  | k,Let(Var(x,tau),BinOp(v1,v2,op),c2) ->
+     let x' = fresh_x () in
+     let (x1,phi1,r1,rc1,rd1) = sat_smt (BinOp(v1,v2,op)) r rc rd k acc in
+     let (x2,phi2,r2,rc2,rd2) = sat_smt (subs c2 (Var (x',tau)) (Var (x,tau))) r1 rc1 rd1 k phi1 in
+     let phi2' = (x'===x1)::phi2 in
+     (x2,phi2',r2,rc2,rd2)
+  | k,Let(Var(x,tau),Assign(v1,v2),c2) ->
+     let (x1,phi1,r1,rc1,rd1) = sat_smt (Assign(v1,v2)) r rc rd k acc in
+     sat_smt (subs c2 Unit (Var (x,tau))) r1 rc1 rd1 k phi1
+  | k,Let(Var(x,tau),Deref(v),c2) ->
+     let x' = fresh_x () in
+     let (x1,phi1,r1,rc1,rd1) = sat_smt (Deref(v)) r rc rd k acc in
+     let (x2,phi2,r2,rc2,rd2) = sat_smt (subs c2 (Var (x',tau)) (Var (x,tau))) r1 rc1 rd1 k phi1 in
+     let phi2' = (x'===x1)::phi2 in
+     (x2,phi2',r2,rc2,rd2)
+  | k,Let(Var(x,tau),Pi1(Pair(v1,v2)),c2) ->
+     sat_smt (subs c2 v1 (Var (x,tau))) r rc rd k acc
+  | k,Let(Var(x,tau),Pi2(Pair(v1,v2)),c2) ->
+     sat_smt (subs c2 v2 (Var (x,tau))) r rc rd k acc
+  | k,Let(Var(x,tau),Val(v),c2) ->
+     sat_smt (subs c2 v (Var (x,tau))) r rc rd k acc
   | k,Let(Var(x,tau),c1,c2) ->
      let ret = fresh_ret () in
      let x' = fresh_x () in
@@ -90,7 +111,7 @@ let rec sat_smt (m : canon) (r : repo) (rc : counter) (rd : counter) (k : nat) (
      let f key (xi,mi,taui) (philast,rlast,rclast,rdlast) =
        if taui=tau
        then let method_name = string_of_value key in (* refs in R *)
-            let (reti,phii,ri,rci,rdi) = sat_smt (subs mi v xi) 
+            let (reti,phii,ri,rci,rdi) = sat_smt (subs mi v xi)
                                                  rlast rclast rd k philast in
             let phii' = ((x===method_name)==>(ret===reti))::phii in
             (phii',ri,rci,(method_name,rdi)::rdlast)
