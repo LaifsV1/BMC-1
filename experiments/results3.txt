@@ -1,0 +1,95 @@
+(*author: Yu-Yang Lin, date 06/12/2016*)
+
+(********************************************)
+(* let (f1:int->int)  = \(x:int).(x:int) in *)
+(* let (f2:int->comm) = \(x:int).skip    in *)
+(* let (y:comm)       = r := f1          in *)
+(* let (f:int->int)   = !r in f 5           *)
+(********************************************)
+
+(*========*)
+(* TEST 1 *)
+(*========*)
+
+Formula:
+ (_x_1_=skip) and
+ ((_x_1_=CNF_FAIL)=>(_ret_1_=CNF_FAIL)) and
+ ((_x_1_=/=CNF_FAIL)=>(_ret_1_=_ret_2_)) and
+ (_x_2_=_r_1_) and
+ ((_x_2_=CNF_FAIL)=>(_ret_2_=CNF_FAIL)) and
+ ((_x_2_=/=CNF_FAIL)=>(_ret_2_=_ret_3_)) and
+ ((_x_2_=fact)=>(_r_4_=_r_3_)) and
+ ((_x_2_=_m_1_)=>(_r_4_=_r_1_)) and
+ ((_x_2_=fact)=>(_ret_3_=_ret_4_)) and
+ ((5=/=0)=>(_ret_4_=_ret_5_)) and
+ ((5=0)=>(_ret_4_=1)) and
+ ((5=/=0)=>(_r_3_=_r_2_)) and
+ ((5=0)=>(_r_3_=_r_1_)) and
+ (_x_3_=5-1) and
+ ((_x_3_=CNF_FAIL)=>(_ret_5_=CNF_FAIL)) and
+ ((_x_3_=/=CNF_FAIL)=>(_ret_5_=_ret_6_)) and
+ (_x_4_=_ret_7_) and
+ ((_x_4_=CNF_FAIL)=>(_ret_6_=CNF_FAIL)) and
+ ((_x_4_=/=CNF_FAIL)=>(_ret_6_=_x_4_*5)) and
+ ((_x_3_=/=0)=>(_ret_7_=_ret_8_)) and
+ ((_x_3_=0)=>(_ret_7_=1)) and
+ ((_x_3_=/=0)=>(_r_2_=_r_1_)) and
+ ((_x_3_=0)=>(_r_2_=_r_1_)) and
+ (_x_5_=_x_3_-1) and
+ ((_x_5_=CNF_FAIL)=>(_ret_8_=CNF_FAIL)) and
+ ((_x_5_=/=CNF_FAIL)=>(_ret_8_=_ret_9_)) and
+ (_x_6_=CNF_NIL) and
+ ((_x_6_=CNF_FAIL)=>(_ret_9_=CNF_FAIL)) and
+ ((_x_6_=/=CNF_FAIL)=>(_ret_9_=_x_6_*_x_3_)) and
+ (_r_1_=_m_1_)
+
+(*--------------*)
+(* Observations *)
+(*--------------*)
+Something is wrong. _m_1_ is not showing up in the function application.
+There might be a bug in the [x v] rule.
+
+(*========*)
+(* TEST 2 *)
+(*========*)
+There was a bug in the [x v] rule, it was taking "acc" instead of "philast".
+
+Formula:
+ ((_x_1_=CNF_FAIL)=>(_ret_1_=CNF_FAIL)) and
+ ((_x_1_=/=CNF_FAIL)=>(_ret_1_=_ret_2_)) and
+ (_x_1_=skip) and
+ ((_x_2_=CNF_FAIL)=>(_ret_2_=CNF_FAIL)) and
+ ((_x_2_=/=CNF_FAIL)=>(_ret_2_=_ret_3_)) and
+ (_x_2_=_r_1_) and
+ ((_x_2_=fact)=>(_r_4_=_r_3_)) and
+ ((_x_2_=_m_1_)=>(_r_4_=_r_1_)) and
+ ((_x_2_=fact)=>(_ret_3_=_ret_4_)) and
+ ((5=/=0)=>(_ret_4_=_ret_5_)) and
+ ((5=0)=>(_ret_4_=1)) and
+ ((5=/=0)=>(_r_3_=_r_2_)) and
+ ((5=0)=>(_r_3_=_r_1_)) and
+ ((_x_3_=CNF_FAIL)=>(_ret_5_=CNF_FAIL)) and
+ ((_x_3_=/=CNF_FAIL)=>(_ret_5_=_ret_6_)) and
+ (_x_3_=5-1) and
+ ((_x_4_=CNF_FAIL)=>(_ret_6_=CNF_FAIL)) and
+ ((_x_4_=/=CNF_FAIL)=>(_ret_6_=_x_4_*5)) and
+ (_x_4_=_ret_7_) and
+ ((_x_3_=/=0)=>(_ret_7_=_ret_8_)) and
+ ((_x_3_=0)=>(_ret_7_=1)) and
+ ((_x_3_=/=0)=>(_r_2_=_r_1_)) and
+ ((_x_3_=0)=>(_r_2_=_r_1_)) and
+ ((_x_5_=CNF_FAIL)=>(_ret_8_=CNF_FAIL)) and
+ ((_x_5_=/=CNF_FAIL)=>(_ret_8_=_ret_9_)) and
+ (_x_5_=_x_3_-1) and
+ ((_x_6_=CNF_FAIL)=>(_ret_9_=CNF_FAIL)) and
+ ((_x_6_=/=CNF_FAIL)=>(_ret_9_=_x_6_*_x_3_)) and
+ (_x_6_=CNF_NIL) and
+ ((_x_2_=_m_1_)=>(_ret_3_=5)) and
+ (_r_1_=_m_1_)
+
+ 
+(*--------------*)
+(* Observations *)
+(*--------------*)
+((_x_2_=_m_1_)=>(_ret_3_=5)) is now present in the formula.
+No obvious mistakes that I can see.

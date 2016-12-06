@@ -88,8 +88,8 @@ let rec sat_smt (m : canon) (r : repo) (rc : counter) (rd : counter) (k : nat) (
      let f key (xi,mi,taui) (philast,rlast,rclast,rdlast) =
        if taui=tau
        then let method_name = string_of_value key in (* refs in R *)
-            let (reti,phii,ri,rci,rdi) = sat_smt (subs mi v xi) rlast rclast rd k acc in
-            let phii'  = ((x===method_name)==>(ret===reti))::phii in
+            let (reti,phii,ri,rci,rdi) = sat_smt (subs mi v xi) rlast rclast rd k philast in
+            let phii' = ((x===method_name)==>(ret===reti))::phii in
             (phii',ri,rci,(method_name,rdi)::rdlast)
        else (philast,rlast,rclast,rdlast)
      in
@@ -206,15 +206,15 @@ let factorial :(value * canon * tp) =
   let factorial_body :(canon) =
     If (n,
         Let(x0,BinOp(n,Int 1,"-"),
-            Let(x,Apply(Method "f",x0),
+            Let(x,Apply(Method "fact",x0),
                 BinOp(x,n,"*"))),
         Val (Int 1))
   in
   let tau = Arrow(Integer,Integer)
   in (n,factorial_body,tau)
 
-let factorial_sat = sat_smt (Apply(Method "f",Int 5))
-                            (repo_update empty_repo (Method "f") factorial)
+let factorial_sat = sat_smt (Apply(Method "fact",Int 5))
+                            (repo_update empty_repo (Method "fact") factorial)
                             (empty_counter)
                             (empty_counter)
 
@@ -263,15 +263,15 @@ let function_1_term =
                     Let(f,Deref r,
                         Apply(f,Int 5)))))
 
-let function_1 = sat_smt function_1_term
-                         (repo_update empty_repo (Method "f") factorial)
-                         (empty_counter)
-                         (empty_counter)
+let function_1_sat = sat_smt function_1_term
+                             (repo_update empty_repo (Method "fact") factorial)
+                             (empty_counter)
+                             (empty_counter)
 
 (****************)
 (*** RUN TEST ***)
 (****************)
-let result = ssa_1_sat (nat_of_int 3) []
+let result = function_1_sat (nat_of_int 3) []
 
 let _ = let (ret,phi,repo,c_counter,d_counter) = result in
         printf "Formula:\n %s\n" (string_of_cnf (phi));

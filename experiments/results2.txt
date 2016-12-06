@@ -55,9 +55,40 @@ If 1=/=0
 then r2_3 = r2_2 = 2 and r1_2 = r1_1 = 1.
 else r2_3 = r2_1 = 0 and r1_2 = r1_0 = nothing.
 
--In the "else" branch, r1 is not modified, i.e. equal to r1_0, which has no value yet (will have in S_0).
+-In the "else" branch, r1 is not modified, i.e. equal to r1_0, which has no value yet (might have in S_0).
 -In the "else" branch, r2 is modified, i.e. equal to r2_1, which equals 0.
 -In the "then" branch, r1 is modified, i.e. equal to r1_1, which equals 1.
 -In the "then" branch, r2 is modified, i.e. equal to r2_2, which equals 2.
 -Variables are in correct SSA; C and D counters seem to be working.
 -If rule seems to be correctly keeping track of state.
+
+(*==============*)
+(* EXPERIMENT 2 *)
+(*==============*)
+
+Algorithm was simplified.
+
+Formula:
+ ((1=/=0)=>(_ret_1_=_ret_3_)) and
+ ((1=0)=>(_ret_1_=_ret_2_)) and
+ ((1=/=0)=>(_r2_3_=_r2_2_)) and
+ ((1=/=0)=>(_r1_2_=_r1_1_)) and
+ ((1=0)=>(_r2_3_=_r2_1_)) and
+ ((1=0)=>(_r1_2_=_r1_0_)) and
+ ((_x_2_=CNF_FAIL)=>(_ret_3_=CNF_FAIL)) and
+ ((_x_2_=/=CNF_FAIL)=>(_ret_3_=_ret_4_)) and
+ (_x_2_=skip) and
+ ((_x_3_=CNF_FAIL)=>(_ret_4_=CNF_FAIL)) and
+ ((_x_3_=/=CNF_FAIL)=>(_ret_4_=skip)) and
+ (_x_3_=skip) and
+ (_r2_2_=2) and
+ (_r1_1_=1) and
+ ((_x_1_=CNF_FAIL)=>(_ret_2_=CNF_FAIL)) and
+ ((_x_1_=/=CNF_FAIL)=>(_ret_2_=skip)) and
+ (_x_1_=skip) and
+ (_r2_1_=0)
+ 
+(*--------------*)
+(* Observations *)
+(*--------------*)
+Formula is a bit smaller.
