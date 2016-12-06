@@ -9,10 +9,12 @@ let var_x  = ref 0
 let var_r  = ref 0
 let var_m  = ref 0
 let return = ref 0
-let fresh_x   () = var_x  := !var_x + 1;  sprintf "_x_%s_"   (string_of_int (!var_x))
-let fresh_r   () = var_r  := !var_r + 1;  sprintf "_r_%s_"   (string_of_int (!var_r))
-let fresh_m   () = var_m  := !var_m + 1;  sprintf "_m_%s_"   (string_of_int (!var_m))
-let fresh_ret () = return := !return + 1; sprintf "_ret_%s_" (string_of_int (!return))
+let fresh_x   () = var_x  := !var_x + 1;  
+                   sprintf "_x%s_"   (string_of_int (!var_x))
+let fresh_m   () = var_m  := !var_m + 1;  
+                   sprintf "_m%s_"   (string_of_int (!var_m))
+let fresh_ret () = return := !return + 1; 
+                   sprintf "_ret%s_" (string_of_int (!return))
 
 (**********************)
 (* Substitute: v{a/b} *)
@@ -88,7 +90,8 @@ let rec sat_smt (m : canon) (r : repo) (rc : counter) (rd : counter) (k : nat) (
      let f key (xi,mi,taui) (philast,rlast,rclast,rdlast) =
        if taui=tau
        then let method_name = string_of_value key in (* refs in R *)
-            let (reti,phii,ri,rci,rdi) = sat_smt (subs mi v xi) rlast rclast rd k philast in
+            let (reti,phii,ri,rci,rdi) = sat_smt (subs mi v xi) 
+                                                 rlast rclast rd k philast in
             let phii' = ((x===method_name)==>(ret===reti))::phii in
             (phii',ri,rci,(method_name,rdi)::rdlast)
        else (philast,rlast,rclast,rdlast)
@@ -141,26 +144,30 @@ let rec sat_smt (m : canon) (r : repo) (rc : counter) (rd : counter) (k : nat) (
      let phi2_0 =
        Counter.fold
              (fun ref_key counter_val phi_acc ->
-               ((x==="0")==>((string_of_ref ref_key counter_val)===(ref_get rd0 ref_key)))::phi_acc)
+               ((x==="0")==>
+                  ((string_of_ref ref_key counter_val)
+                   ===(ref_get rd0 ref_key)))::phi_acc)
              rc' phi1
      in
      let phi2_1 =
        Counter.fold
              (fun ref_key counter_val phi_acc ->
-               ((x=/="0")==>((string_of_ref ref_key counter_val)===(ref_get rd1 ref_key)))::phi_acc)
+               ((x=/="0")==>
+                  ((string_of_ref ref_key counter_val)
+                   ===(ref_get rd1 ref_key)))::phi_acc)
              rc'
              phi2_0
      in
      (ret,vi_to_x1::v0_to_x0::phi2_1,r1,rc',rc')
   | k,Fail -> (cnf_fail,acc,r,rc,rd)
-  | _ -> failwith (sprintf "***[error] : unexpected input to SAT/SMT semantics\n%s"
+  | _ -> failwith (sprintf "***[error] : unexpected input to semantics\n%s"
                            (string_of_canon m))
 
 (***********************)
 (* String_of functions *)
 (***********************)
 let string_of_clause = function
-  | Eq (x,y) -> sprintf "(%s=%s)" x y
+  | Eq (x,y) -> sprintf "(%s=%s)"   x y
   | Neq(x,y) -> sprintf "(%s=/=%s)" x y
 let rec string_of_cnf' acc = function
   | [] -> acc
